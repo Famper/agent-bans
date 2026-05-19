@@ -16,7 +16,12 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { SortableContext, horizontalListSortingStrategy, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ColumnView } from "./ColumnView";
@@ -255,59 +260,84 @@ export function BoardClient({
     if (activeData.type !== "card") return;
 
     const cardId = String(a.id);
-    const located = findCard(cardId);
-    if (!located) return;
-    const col = board.columns[located.columnIndex];
-    const targetColumnId = col.id;
-    const indexInTarget = located.cardIndex;
+    if (over.id === a.id) return; // dropped on self
 
-    const before = col.cards[indexInTarget - 1]?.sortOrder ?? null;
-    const after = col.cards[indexInTarget + 1]?.sortOrder ?? null;
+    // Locate the card in the *current* (post-onDragOver) state. For cross-column
+    // drags this is already in the target column; for within-column drags this
+    // is still the original position because onDragOver intentionally skips
+    // same-column shuffling (the SortableContext renders the visual offset).
+    const here = findCard(cardId);
+    if (!here) return;
+    const currentCol = board.columns[here.columnIndex];
+    const currentIdx = here.cardIndex;
 
-    // No-op when nothing actually changed (same column, same neighbors as origin).
-    const card = col.cards[indexInTarget];
-    if (
-      dropped?.kind === "card" &&
-      dropped.originColumnId === targetColumnId &&
-      card.sortOrder !== "" &&
-      card.id === cardId &&
-      card.columnId === targetColumnId &&
-      // Position didn't change at all
-      card.sortOrder === dropped.card.sortOrder
-    ) {
-      // But if the user dragged within the same column to a different index, sortOrder will
-      // not have changed yet (we don't shuffle within column in onDragOver), so we still need
-      // to detect this case via index comparison.
-      const originIdx = board.columns
-        .find((c) => c.id === dropped.originColumnId)
-        ?.cards.findIndex((c) => c.id === cardId);
-      if (originIdx === indexInTarget) return;
+    // Resolve target column id based on what we dropped on.
+    let targetColumnId = currentCol.id;
+    if (overData.type === "column-drop") {
+      targetColumnId = String(overData.columnId);
+    } else if (overData.type === "card") {
+      const overCol = board.columns.find((c) => c.cards.some((cc) => cc.id === over.id));
+      if (overCol) targetColumnId = overCol.id;
     }
+
+    let nextCardsInTarget: CardDTO[];
+    let nextIndex: number;
+
+    if (targetColumnId === currentCol.id) {
+      // === Same-column move: apply arrayMove based on over.id ===
+      if (overData.type === "card" && over.id !== a.id) {
+        const overIdx = currentCol.cards.findIndex((c) => c.id === over.id);
+        if (overIdx < 0 || overIdx === currentIdx) return;
+        nextCardsInTarget = arrayMove(currentCol.cards, currentIdx, overIdx);
+        nextIndex = overIdx;
+      } else if (overData.type === "column-drop") {
+        const lastIdx = currentCol.cards.length - 1;
+        if (currentIdx === lastIdx) return;
+        nextCardsInTarget = arrayMove(currentCol.cards, currentIdx, lastIdx);
+        nextIndex = lastIdx;
+      } else {
+        return;
+      }
+    } else {
+      // === Cross-column move: onDragOver already placed the card in the target column. ===
+      const targetCol = board.columns.find((c) => c.id === targetColumnId);
+      if (!targetCol) return;
+      const idx = targetCol.cards.findIndex((c) => c.id === cardId);
+      if (idx < 0) return;
+      nextCardsInTarget = targetCol.cards;
+      nextIndex = idx;
+    }
+
+    // Compute sortOrder from the card's NEW neighbors in nextCardsInTarget.
+    const beforeOrder = nextIndex > 0 ? nextCardsInTarget[nextIndex - 1].sortOrder : null;
+    const afterOrder =
+      nextIndex < nextCardsInTarget.length - 1
+        ? nextCardsInTarget[nextIndex + 1].sortOrder
+        : null;
 
     let newSortOrder: string;
     try {
-      newSortOrder = keyBetween(before, after);
+      newSortOrder = keyBetween(beforeOrder, afterOrder);
     } catch {
-      return;
-    }
-
-    // If we computed the same sortOrder we already have, skip the write.
-    if (newSortOrder === card.sortOrder && dropped?.kind === "card" && dropped.originColumnId === targetColumnId) {
       return;
     }
 
     setBoard((b) => ({
       ...b,
-      columns: b.columns.map((c) =>
-        c.id === targetColumnId
-          ? {
-              ...c,
-              cards: c.cards.map((cc) =>
-                cc.id === cardId ? { ...cc, sortOrder: newSortOrder, columnId: targetColumnId } : cc
-              ),
-            }
-          : c
-      ),
+      columns: b.columns.map((c) => {
+        // Strip card from any non-target column (cross-column case).
+        if (c.id !== targetColumnId) {
+          return { ...c, cards: c.cards.filter((cc) => cc.id !== cardId) };
+        }
+        return {
+          ...c,
+          cards: nextCardsInTarget.map((cc) =>
+            cc.id === cardId
+              ? { ...cc, sortOrder: newSortOrder, columnId: targetColumnId }
+              : cc
+          ),
+        };
+      }),
     }));
 
     startTransition(async () => {
