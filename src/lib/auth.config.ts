@@ -12,8 +12,7 @@ export const authConfig = {
       const isAuthPage = pathname === "/signin" || pathname === "/signup";
       const isPublicApi =
         pathname.startsWith("/api/auth") ||
-        pathname === "/api/health" ||
-        pathname.startsWith("/api/uploads");
+        pathname === "/api/health";
 
       if (isPublicApi) return true;
       if (isAuthPage) {
