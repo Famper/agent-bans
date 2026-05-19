@@ -1,0 +1,42 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    image: kanban-app:dev
+    container_name: kanban-app
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: "file:/data/db/kanban.db"
+      UPLOAD_DIR: "/data/uploads"
+      AUTH_SECRET: "${AUTH_SECRET:-dev-only-change-in-prod-aaaaaaaaaaaaaaaa}"
+      AUTH_TRUST_HOST: "true"
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+      NEXT_TELEMETRY_DISABLED: "1"
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      SEED_DEMO_USER: "${SEED_DEMO_USER:-0}"
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+      - ./public:/app/public
+      - ./middleware.ts:/app/middleware.ts
+      - ./next.config.ts:/app/next.config.ts
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./postcss.config.mjs:/app/postcss.config.mjs
+      - ./next-env.d.ts:/app/next-env.d.ts
+      - app-node-modules:/app/node_modules
+      - app-next-cache:/app/.next
+      - kanban-db:/data/db
+      - kanban-uploads:/data/uploads
+    restart: unless-stopped
+
+volumes:
+  app-node-modules:
+  app-next-cache:
+  kanban-db:
+  kanban-uploads:
