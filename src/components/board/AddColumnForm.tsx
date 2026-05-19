@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ColorPicker } from "./ColorPicker";
 import { createColumn } from "@/app/actions/columns";
+import type { ColumnDTO } from "@/types/board";
 
 export function AddColumnForm({
   boardId,
   onCreated,
 }: {
   boardId: string;
-  onCreated?: () => void;
+  onCreated: (column: ColumnDTO) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -25,12 +26,12 @@ export function AddColumnForm({
     if (!trimmed) return;
     startTransition(async () => {
       try {
-        await createColumn({ boardId, name: trimmed, color });
+        const created = await createColumn({ boardId, name: trimmed, color });
+        onCreated(created);
         toast.success("Колонка создана");
         setName("");
         setColor("#3b82f6");
         setOpen(false);
-        onCreated?.();
       } catch (e) {
         toast.error((e as Error).message ?? "Не удалось создать колонку");
       }

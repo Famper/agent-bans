@@ -6,13 +6,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createCard } from "@/app/actions/cards";
+import type { CardDTO } from "@/types/board";
 
 export function AddCardForm({
   columnId,
   onCreated,
 }: {
   columnId: string;
-  onCreated: () => void;
+  onCreated: (card: CardDTO) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -23,10 +24,10 @@ export function AddCardForm({
     if (!t) return;
     startTransition(async () => {
       try {
-        await createCard({ columnId, title: t });
+        const created = await createCard({ columnId, title: t });
+        onCreated(created);
         setTitle("");
         setOpen(false);
-        onCreated();
       } catch (e) {
         toast.error((e as Error).message ?? "Не удалось создать карточку");
       }

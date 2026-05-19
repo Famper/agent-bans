@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { keyBetween } from "@/lib/ordering";
+import type { ColumnDTO } from "@/types/board";
 
 const hexColor = z
   .string()
@@ -33,7 +34,7 @@ const createSchema = z.object({
   color: hexColor,
 });
 
-export async function createColumn(input: z.infer<typeof createSchema>) {
+export async function createColumn(input: z.infer<typeof createSchema>): Promise<ColumnDTO> {
   const user = await requireUser();
   const parsed = createSchema.parse(input);
   await userOwnsBoard(parsed.boardId, user.id);
@@ -56,7 +57,15 @@ export async function createColumn(input: z.infer<typeof createSchema>) {
   });
 
   revalidatePath("/");
-  return created;
+  return {
+    id: created.id,
+    boardId: created.boardId,
+    name: created.name,
+    color: created.color,
+    sortOrder: created.sortOrder,
+    wipLimit: created.wipLimit,
+    cards: [],
+  };
 }
 
 const updateSchema = z.object({

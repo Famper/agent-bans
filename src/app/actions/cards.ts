@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { keyBetween } from "@/lib/ordering";
+import type { CardDTO } from "@/types/board";
 
 async function userOwnsColumn(columnId: string, userId: string) {
   const col = await prisma.column.findFirst({
@@ -29,7 +30,7 @@ const createSchema = z.object({
   body: z.string().max(50_000).optional(),
 });
 
-export async function createCard(input: z.infer<typeof createSchema>) {
+export async function createCard(input: z.infer<typeof createSchema>): Promise<CardDTO> {
   const user = await requireUser();
   const parsed = createSchema.parse(input);
   await userOwnsColumn(parsed.columnId, user.id);
@@ -50,7 +51,17 @@ export async function createCard(input: z.infer<typeof createSchema>) {
     },
   });
   revalidatePath("/");
-  return created;
+  return {
+    id: created.id,
+    columnId: created.columnId,
+    title: created.title,
+    body: created.body,
+    sortOrder: created.sortOrder,
+    createdAt: created.createdAt.toISOString(),
+    updatedAt: created.updatedAt.toISOString(),
+    comments: [],
+    attachments: [],
+  };
 }
 
 const updateSchema = z.object({

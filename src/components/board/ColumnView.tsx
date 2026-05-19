@@ -21,7 +21,7 @@ export function ColumnView({
   onCardOpen: (card: CardDTO) => void;
   onColumnLocalChange: (patch: Partial<ColumnDTO>) => void;
   onColumnDeleted: () => void;
-  onCardCreated: () => void;
+  onCardCreated: (card: CardDTO) => void;
 }) {
   const {
     attributes,
