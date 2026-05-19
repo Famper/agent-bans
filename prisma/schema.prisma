@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  accounts     Account[]
+  sessions     Session[]
+  boards       Board[]
+}
+
+// Auth.js standard models (kept for forward compatibility with adapters/OAuth)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Board {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String   @default("My Board")
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  columns   Column[]
+
+  @@index([userId])
+}
+
+model Column {
+  id        String  @id @default(cuid())
+  boardId   String
+  name      String
+  color     String  @default("#4f86ff")
+  sortOrder String
+  wipLimit  Int?
+  board     Board   @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards     Card[]
+
+  @@unique([boardId, name])
+  @@index([boardId, sortOrder])
+}
+
+model Card {
+  id          String       @id @default(cuid())
+  columnId    String
+  title       String
+  body        String       @default("")
+  sortOrder   String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  column      Column       @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  comments    Comment[]
+  attachments Attachment[]
+
+  @@index([columnId, sortOrder])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  cardId    String
+  authorId  String?
+  authorName String?
+  text      String
+  createdAt DateTime @default(now())
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId, createdAt])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  cardId    String
+  filename  String
+  storedAs  String
+  mimeType  String
+  sizeBytes Int
+  url       String
+  createdAt DateTime @default(now())
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId])
+}
