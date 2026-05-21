@@ -84,10 +84,10 @@ npm run db:seed:agent-board
 | `ci.yml` | PR, push в `main` | `npm ci` → `prisma generate/validate` → `tsc --noEmit` → `next build` + smoke-сборка `dev` и `runner` Docker-образов через buildx (с GHA-кешом) |
 | `publish.yml` | Push в `main`, теги `v*.*.*`, ручной dispatch | Сборка multi-arch (`linux/amd64,linux/arm64`) `runner` образа и публикация в GHCR с тегами `latest`, `sha-<short>`, `<version>`, `<major.minor>` |
 
-Образы публикуются в `ghcr.io/<owner>/agent-bans`. Аутентификация через `GITHUB_TOKEN` (с правами `packages: write`).
+Образы публикуются в `ghcr.io/famper/agent-bans`. Аутентификация через `GITHUB_TOKEN` (с правами `packages: write`).
 
 Чтобы запустить опубликованный образ:
 
 ```bash
-docker pull ghcr.io/<owner>/agent-bans:latest
+docker pull ghcr.io/famper/agent-bans:latest
 ```
