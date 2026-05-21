@@ -86,11 +86,32 @@ model Card {
   sortOrder   String
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+
+  // Hermes/agent fields — null for human-created cards, populated for agent tasks.
+  agentType        String?
+  agentComplexity  String?
+  agentId          String?
+  model            String?
+  iterations       Int      @default(0)
+  maxIterations    Int      @default(5)
+  costUsd          Float    @default(0)
+  maxCostUsd       Float    @default(10)
+  prUrl            String?
+  errorLog         String?
+  notionCardId     String?
+  notionTlNotified Boolean  @default(false)
+  projectId        String?
+  parentCardId     String?
+
   column      Column       @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  parent      Card?        @relation("CardSubtasks", fields: [parentCardId], references: [id], onDelete: SetNull)
+  children    Card[]       @relation("CardSubtasks")
   comments    Comment[]
   attachments Attachment[]
 
   @@index([columnId, sortOrder])
+  @@index([projectId])
+  @@index([parentCardId])
 }
 
 model Comment {

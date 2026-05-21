@@ -13,7 +13,10 @@ export const authConfig = {
       const isPublicApi =
         pathname.startsWith("/api/auth") ||
         pathname === "/api/health" ||
-        pathname.startsWith("/api/uploads");
+        pathname.startsWith("/api/uploads") ||
+        // Hermes REST API для агентов — авторизация по Bearer-токену внутри роута.
+        pathname.startsWith("/api/tasks") ||
+        pathname.startsWith("/api/boards");
 
       if (isPublicApi) return true;
       if (isAuthPage) {
