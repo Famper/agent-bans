@@ -7,6 +7,7 @@
 import { prisma } from "@/lib/db";
 import { requireBearer, readJson, jsonResponse, BadRequest } from "@/lib/agent-auth";
 import { cardToTask } from "@/lib/agent-tasks";
+import { publishEvent } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
       const candidate = await tx.card.findFirst({
         where: {
           agentId: null,
+          isSystem: false,
           column: { boardId, name: fromStatus },
         },
         orderBy: { createdAt: "asc" },
@@ -42,7 +44,7 @@ export async function POST(req: Request, ctx: RouteCtx) {
       // Проверка через updateMany защищает от гонок: если другой воркер успел
       // захватить эту же карточку, обновление с условием agentId IS NULL вернёт count=0.
       const result = await tx.card.updateMany({
-        where: { id: candidate.id, agentId: null },
+        where: { id: candidate.id, agentId: null, isSystem: false },
         data: { agentId },
       });
       if (result.count === 0) return null;
@@ -54,6 +56,17 @@ export async function POST(req: Request, ctx: RouteCtx) {
     });
 
     if (!claimed) return jsonResponse(204);
+
+    await publishEvent({
+      type: "card.claimed",
+      boardId: claimed.column.boardId,
+      taskId: claimed.id,
+      status: claimed.column.name,
+      agentId: claimed.agentId,
+      projectId: claimed.projectId,
+      isSystem: claimed.isSystem,
+    });
+
     return jsonResponse(200, cardToTask(claimed));
   } catch (err) {
     if (err instanceof BadRequest) return jsonResponse(400, { error: err.message });

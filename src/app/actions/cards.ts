@@ -5,20 +5,28 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { keyBetween } from "@/lib/ordering";
+import { publishEvent } from "@/lib/events";
 import type { CardDTO } from "@/types/board";
 
 async function userOwnsColumn(columnId: string, userId: string) {
   const col = await prisma.column.findFirst({
     where: { id: columnId, board: { userId } },
-    select: { id: true },
+    select: { id: true, boardId: true, name: true },
   });
   if (!col) throw new Error("FORBIDDEN");
+  return col;
 }
 
 async function userOwnsCard(cardId: string, userId: string) {
   const card = await prisma.card.findFirst({
     where: { id: cardId, column: { board: { userId } } },
-    select: { id: true, columnId: true },
+    select: {
+      id: true,
+      columnId: true,
+      projectId: true,
+      isSystem: true,
+      column: { select: { boardId: true, name: true } },
+    },
   });
   if (!card) throw new Error("FORBIDDEN");
   return card;
@@ -57,6 +65,7 @@ export async function createCard(input: z.infer<typeof createSchema>): Promise<C
     title: created.title,
     body: created.body,
     sortOrder: created.sortOrder,
+    isSystem: created.isSystem,
     createdAt: created.createdAt.toISOString(),
     updatedAt: created.updatedAt.toISOString(),
     comments: [],
@@ -73,7 +82,7 @@ const updateSchema = z.object({
 export async function updateCard(input: z.infer<typeof updateSchema>) {
   const user = await requireUser();
   const parsed = updateSchema.parse(input);
-  await userOwnsCard(parsed.id, user.id);
+  const card = await userOwnsCard(parsed.id, user.id);
 
   const updated = await prisma.card.update({
     where: { id: parsed.id },
@@ -83,6 +92,17 @@ export async function updateCard(input: z.infer<typeof updateSchema>) {
     },
   });
   revalidatePath("/");
+
+  // Событие для агентов: TL отредактировал карточку (например, дополнил описание).
+  await publishEvent({
+    type: "card.updated",
+    boardId: card.column.boardId,
+    taskId: card.id,
+    status: card.column.name,
+    projectId: card.projectId,
+    isSystem: card.isSystem,
+  });
+
   return updated;
 }
 
@@ -95,19 +115,41 @@ const moveSchema = z.object({
 export async function moveCard(input: z.infer<typeof moveSchema>) {
   const user = await requireUser();
   const parsed = moveSchema.parse(input);
-  await userOwnsCard(parsed.id, user.id);
-  await userOwnsColumn(parsed.columnId, user.id);
+  const card = await userOwnsCard(parsed.id, user.id);
+  const targetCol = await userOwnsColumn(parsed.columnId, user.id);
 
   await prisma.card.update({
     where: { id: parsed.id },
     data: { columnId: parsed.columnId, sortOrder: parsed.sortOrder },
   });
   revalidatePath("/");
+
+  // Событие для агентов: TL перетащил карточку. Если сменилась колонка (статус) —
+  // это card.moved с prevStatus, иначе просто переупорядочивание внутри колонки.
+  const statusChanged = targetCol.name !== card.column.name;
+  await publishEvent({
+    type: statusChanged ? "card.moved" : "card.updated",
+    boardId: targetCol.boardId,
+    taskId: card.id,
+    status: targetCol.name,
+    prevStatus: statusChanged ? card.column.name : undefined,
+    projectId: card.projectId,
+    isSystem: card.isSystem,
+  });
 }
 
 export async function deleteCard(id: string) {
   const user = await requireUser();
-  await userOwnsCard(id, user.id);
+  const card = await userOwnsCard(id, user.id);
   await prisma.card.delete({ where: { id } });
   revalidatePath("/");
+
+  await publishEvent({
+    type: "card.deleted",
+    boardId: card.column.boardId,
+    taskId: card.id,
+    status: card.column.name,
+    projectId: card.projectId,
+    isSystem: card.isSystem,
+  });
 }

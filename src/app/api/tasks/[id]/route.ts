@@ -11,6 +11,7 @@ import {
   getCardWithColumn,
   HERMES_FIELD_MAP,
 } from "@/lib/agent-tasks";
+import { publishEvent } from "@/lib/events";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -69,6 +70,17 @@ export async function PATCH(req: Request, ctx: RouteCtx) {
         data,
         include: { column: true },
       });
+    });
+
+    await publishEvent({
+      type: targetStatus ? "card.moved" : "card.updated",
+      boardId: updated.column.boardId,
+      taskId: updated.id,
+      status: updated.column.name,
+      prevStatus: targetStatus ? existing.column.name : undefined,
+      agentId: updated.agentId,
+      projectId: updated.projectId,
+      isSystem: updated.isSystem,
     });
 
     return jsonResponse(200, cardToTask(updated));

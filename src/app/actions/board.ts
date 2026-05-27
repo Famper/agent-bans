@@ -67,6 +67,7 @@ export async function getBoard(): Promise<BoardDTO> {
       title: card.title,
       body: card.body,
       sortOrder: card.sortOrder,
+      isSystem: card.isSystem,
       createdAt: card.createdAt.toISOString(),
       updatedAt: card.updatedAt.toISOString(),
       comments: card.comments.map((c) => ({

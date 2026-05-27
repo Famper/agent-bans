@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { keyBetween } from "@/lib/ordering";
 import { requireBearer, readJson, jsonResponse, BadRequest } from "@/lib/agent-auth";
 import { cardToTask, ensureColumnByName } from "@/lib/agent-tasks";
+import { publishEvent } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export async function POST(req: Request) {
     const type = typeof body.type === "string" ? body.type : "bugfix";
     const complexity = typeof body.complexity === "string" ? body.complexity : "simple";
     const status = typeof body.status === "string" ? body.status : "Incoming";
+    const isSystem = body.isSystem === true;
     const parentId = typeof body.parentId === "string" ? body.parentId : undefined;
     let boardId = typeof body.boardId === "string" ? body.boardId : undefined;
 
@@ -64,10 +66,20 @@ export async function POST(req: Request) {
           agentComplexity: complexity,
           parentCardId: parentId ?? null,
           projectId,
+          isSystem,
         },
         include: { column: true },
       });
       return card;
+    });
+
+    await publishEvent({
+      type: "card.created",
+      boardId: created.column.boardId,
+      taskId: created.id,
+      status: created.column.name,
+      projectId: created.projectId,
+      isSystem: created.isSystem,
     });
 
     return jsonResponse(201, cardToTask(created));
