@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -66,6 +66,40 @@ export function BoardClient({
   useEffect(() => {
     setBoard(initialBoard);
   }, [initialBoard]);
+
+  // Live-обновление: подписываемся на серверные события (SSE поверх Redis) и на
+  // каждое событие подтягиваем свежий снапшот доски через router.refresh().
+  // Это покрывает перемещения карточек агентами, новые комментарии и т.п. без
+  // ручной перезагрузки страницы.
+  const activeRef = useRef<ActiveDrag>(active);
+  activeRef.current = active;
+  useEffect(() => {
+    const es = new EventSource("/api/events");
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    // Троттлим refresh (схлопываем всплески событий) и НЕ дёргаем доску, пока
+    // пользователь тащит карточку — иначе re-sync собьёт текущий drag.
+    const scheduleRefresh = () => {
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        if (activeRef.current) {
+          scheduleRefresh(); // drag в процессе — отложим ещё на тик
+          return;
+        }
+        router.refresh();
+      }, 400);
+    };
+
+    es.onmessage = scheduleRefresh;
+    // EventSource сам переподключается при обрыве; ошибки только логируем.
+    es.onerror = () => {};
+
+    return () => {
+      es.close();
+      if (timer) clearTimeout(timer);
+    };
+  }, [router]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
