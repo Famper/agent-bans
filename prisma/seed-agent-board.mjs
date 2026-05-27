@@ -12,6 +12,9 @@ import { randomBytes } from "node:crypto";
 const prisma = new PrismaClient();
 
 const STATUSES = [
+  // Draft — черновик. Самая левая колонка, агенты её НЕ опрашивают: задачу
+  // сочиняют здесь, а в Incoming перетаскивают, когда она готова к исполнению.
+  { name: "Draft", color: "#64748b" },
   { name: "Incoming", color: "#94a3b8" },
   { name: "Architect", color: "#a855f7" },
   { name: "AwaitingTLApproval", color: "#eab308" },

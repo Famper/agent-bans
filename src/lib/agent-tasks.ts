@@ -8,6 +8,7 @@ import { prisma } from "./db";
 import { keyBetween } from "./ordering";
 
 export type HermesStatus =
+  | "Draft"
   | "Incoming"
   | "Architect"
   | "AwaitingTLApproval"
@@ -19,6 +20,7 @@ export type HermesStatus =
   | "Blocked";
 
 export const HERMES_STATUSES: HermesStatus[] = [
+  "Draft",
   "Incoming",
   "Architect",
   "AwaitingTLApproval",
@@ -31,6 +33,7 @@ export const HERMES_STATUSES: HermesStatus[] = [
 ];
 
 const STATUS_COLORS: Record<HermesStatus, string> = {
+  Draft: "#64748b",
   Incoming: "#94a3b8",
   Architect: "#a855f7",
   AwaitingTLApproval: "#eab308",
