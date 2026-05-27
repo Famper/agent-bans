@@ -20,6 +20,10 @@ services:
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
       SEED_DEMO_USER: "${SEED_DEMO_USER:-0}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+    depends_on:
+      redis:
+        condition: service_healthy
     volumes:
       - ./src:/app/src
       - ./prisma:/app/prisma
@@ -33,6 +37,19 @@ services:
       - app-next-cache:/app/.next
       - kanban-db:/data/db
       - kanban-uploads:/data/uploads
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: kanban-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
 
 volumes:

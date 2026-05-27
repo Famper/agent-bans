@@ -67,6 +67,11 @@ export function CardItem({
         onClick={() => onOpen?.()}
         className="cursor-pointer pt-7 px-2.5 pb-2.5"
       >
+        {card.isSystem && (
+          <span className="mb-1 inline-block rounded bg-[var(--color-muted)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
+            System
+          </span>
+        )}
         <div className="text-sm font-medium leading-tight break-words">{card.title}</div>
         {card.body.trim() && (
           <div className="mt-1 text-xs text-[var(--color-muted-foreground)] line-clamp-2 break-words">

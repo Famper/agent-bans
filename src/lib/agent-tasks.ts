@@ -60,6 +60,7 @@ export interface HermesTaskDTO {
   errorLog?: string;
   notionCardId?: string;
   notionTlNotified?: boolean;
+  isSystem: boolean;
   projectId: string;
   createdAt: string;
   updatedAt: string;
@@ -86,6 +87,7 @@ export function cardToTask(card: CardWithColumn): HermesTaskDTO {
     errorLog: card.errorLog ?? undefined,
     notionCardId: card.notionCardId ?? undefined,
     notionTlNotified: card.notionTlNotified ? true : undefined,
+    isSystem: card.isSystem,
     projectId: card.projectId ?? "",
     createdAt: card.createdAt.toISOString(),
     updatedAt: card.updatedAt.toISOString(),

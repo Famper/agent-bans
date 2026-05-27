@@ -102,6 +102,9 @@ model Card {
   notionTlNotified Boolean  @default(false)
   projectId        String?
   parentCardId     String?
+  // System cards (welcome/onboarding) live on the board for humans but must
+  // never enter the agent pipeline — the claim endpoint skips them.
+  isSystem         Boolean  @default(false)
 
   column      Column       @relation(fields: [columnId], references: [id], onDelete: Cascade)
   parent      Card?        @relation("CardSubtasks", fields: [parentCardId], references: [id], onDelete: SetNull)

@@ -4,13 +4,15 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { publishEvent } from "@/lib/events";
 
 async function userOwnsCard(cardId: string, userId: string) {
   const card = await prisma.card.findFirst({
     where: { id: cardId, column: { board: { userId } } },
-    select: { id: true },
+    select: { id: true, projectId: true, column: { select: { boardId: true, name: true } } },
   });
   if (!card) throw new Error("FORBIDDEN");
+  return card;
 }
 
 async function userOwnsComment(commentId: string, userId: string) {
@@ -29,7 +31,7 @@ const addSchema = z.object({
 export async function addComment(input: z.infer<typeof addSchema>) {
   const user = await requireUser();
   const parsed = addSchema.parse(input);
-  await userOwnsCard(parsed.cardId, user.id);
+  const card = await userOwnsCard(parsed.cardId, user.id);
 
   const created = await prisma.comment.create({
     data: {
@@ -40,6 +42,17 @@ export async function addComment(input: z.infer<typeof addSchema>) {
     },
   });
   revalidatePath("/");
+
+  // Событие для агентов: TL ответил в треде — агент сможет прочитать и продолжить.
+  await publishEvent({
+    type: "comment.added",
+    boardId: card.column.boardId,
+    taskId: card.id,
+    status: card.column.name,
+    agentId: user.name ?? user.email,
+    projectId: card.projectId,
+  });
+
   return created;
 }
 

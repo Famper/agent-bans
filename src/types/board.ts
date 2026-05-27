@@ -23,6 +23,7 @@ export interface CardDTO {
   title: string;
   body: string;
   sortOrder: string;
+  isSystem: boolean;
   createdAt: string;
   updatedAt: string;
   comments: CommentDTO[];
