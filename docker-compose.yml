@@ -21,6 +21,7 @@ services:
       CHOKIDAR_USEPOLLING: "true"
       SEED_DEMO_USER: "${SEED_DEMO_USER:-0}"
       REDIS_URL: "${REDIS_URL:-redis://redis:6379}"
+      SHARED_BOARD_ID: "${SHARED_BOARD_ID:-}"
     depends_on:
       redis:
         condition: service_healthy

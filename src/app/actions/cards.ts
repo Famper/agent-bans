@@ -4,22 +4,27 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { resolveSharedBoardId } from "@/lib/shared-board";
 import { keyBetween } from "@/lib/ordering";
 import { publishEvent } from "@/lib/events";
 import type { CardDTO } from "@/types/board";
 
-async function userOwnsColumn(columnId: string, userId: string) {
+async function assertSharedColumn(columnId: string) {
+  const sharedId = await resolveSharedBoardId();
+  if (!sharedId) throw new Error("FORBIDDEN");
   const col = await prisma.column.findFirst({
-    where: { id: columnId, board: { userId } },
+    where: { id: columnId, boardId: sharedId },
     select: { id: true, boardId: true, name: true },
   });
   if (!col) throw new Error("FORBIDDEN");
   return col;
 }
 
-async function userOwnsCard(cardId: string, userId: string) {
+async function assertSharedCard(cardId: string) {
+  const sharedId = await resolveSharedBoardId();
+  if (!sharedId) throw new Error("FORBIDDEN");
   const card = await prisma.card.findFirst({
-    where: { id: cardId, column: { board: { userId } } },
+    where: { id: cardId, column: { boardId: sharedId } },
     select: {
       id: true,
       columnId: true,
@@ -39,9 +44,9 @@ const createSchema = z.object({
 });
 
 export async function createCard(input: z.infer<typeof createSchema>): Promise<CardDTO> {
-  const user = await requireUser();
+  await requireUser();
   const parsed = createSchema.parse(input);
-  await userOwnsColumn(parsed.columnId, user.id);
+  await assertSharedColumn(parsed.columnId);
 
   const last = await prisma.card.findFirst({
     where: { columnId: parsed.columnId },
@@ -80,9 +85,9 @@ const updateSchema = z.object({
 });
 
 export async function updateCard(input: z.infer<typeof updateSchema>) {
-  const user = await requireUser();
+  await requireUser();
   const parsed = updateSchema.parse(input);
-  const card = await userOwnsCard(parsed.id, user.id);
+  const card = await assertSharedCard(parsed.id);
 
   const updated = await prisma.card.update({
     where: { id: parsed.id },
@@ -113,10 +118,10 @@ const moveSchema = z.object({
 });
 
 export async function moveCard(input: z.infer<typeof moveSchema>) {
-  const user = await requireUser();
+  await requireUser();
   const parsed = moveSchema.parse(input);
-  const card = await userOwnsCard(parsed.id, user.id);
-  const targetCol = await userOwnsColumn(parsed.columnId, user.id);
+  const card = await assertSharedCard(parsed.id);
+  const targetCol = await assertSharedColumn(parsed.columnId);
 
   await prisma.card.update({
     where: { id: parsed.id },
@@ -139,8 +144,8 @@ export async function moveCard(input: z.infer<typeof moveSchema>) {
 }
 
 export async function deleteCard(id: string) {
-  const user = await requireUser();
-  const card = await userOwnsCard(id, user.id);
+  await requireUser();
+  const card = await assertSharedCard(id);
   await prisma.card.delete({ where: { id } });
   revalidatePath("/");
 

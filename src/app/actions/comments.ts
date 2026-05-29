@@ -4,20 +4,25 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { resolveSharedBoardId } from "@/lib/shared-board";
 import { publishEvent } from "@/lib/events";
 
-async function userOwnsCard(cardId: string, userId: string) {
+async function assertSharedCard(cardId: string) {
+  const sharedId = await resolveSharedBoardId();
+  if (!sharedId) throw new Error("FORBIDDEN");
   const card = await prisma.card.findFirst({
-    where: { id: cardId, column: { board: { userId } } },
+    where: { id: cardId, column: { boardId: sharedId } },
     select: { id: true, projectId: true, column: { select: { boardId: true, name: true } } },
   });
   if (!card) throw new Error("FORBIDDEN");
   return card;
 }
 
-async function userOwnsComment(commentId: string, userId: string) {
+async function assertSharedComment(commentId: string) {
+  const sharedId = await resolveSharedBoardId();
+  if (!sharedId) throw new Error("FORBIDDEN");
   const c = await prisma.comment.findFirst({
-    where: { id: commentId, card: { column: { board: { userId } } } },
+    where: { id: commentId, card: { column: { boardId: sharedId } } },
     select: { id: true },
   });
   if (!c) throw new Error("FORBIDDEN");
@@ -31,7 +36,7 @@ const addSchema = z.object({
 export async function addComment(input: z.infer<typeof addSchema>) {
   const user = await requireUser();
   const parsed = addSchema.parse(input);
-  const card = await userOwnsCard(parsed.cardId, user.id);
+  const card = await assertSharedCard(parsed.cardId);
 
   const created = await prisma.comment.create({
     data: {
@@ -57,8 +62,8 @@ export async function addComment(input: z.infer<typeof addSchema>) {
 }
 
 export async function deleteComment(id: string) {
-  const user = await requireUser();
-  await userOwnsComment(id, user.id);
+  await requireUser();
+  await assertSharedComment(id);
   await prisma.comment.delete({ where: { id } });
   revalidatePath("/");
 }
