@@ -64,6 +64,12 @@ export async function PATCH(req: Request, ctx: RouteCtx) {
         });
         data.column = { connect: { id: column.id } };
         data.sortOrder = keyBetween(last?.sortOrder ?? null, null);
+        // Смена колонки = передача задачи на следующую стадию → освобождаем
+        // владельца. claim берёт только карточки с agentId IS NULL, поэтому без
+        // сброса карточка приезжает к следующему агенту уже «занятой» предыдущим
+        // (coder→Testing с agentId=coder-v1) и tester её не подхватывает.
+        // Переопределяет agentId, который агент мог передать в этом же запросе.
+        data.agentId = null;
       }
       return tx.card.update({
         where: { id },
