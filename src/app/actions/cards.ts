@@ -123,15 +123,26 @@ export async function moveCard(input: z.infer<typeof moveSchema>) {
   const card = await assertSharedCard(parsed.id);
   const targetCol = await assertSharedColumn(parsed.columnId);
 
+  // Сменилась ли колонка (статус). По columnId — точнее, чем по имени.
+  const statusChanged = card.columnId !== parsed.columnId;
+
   await prisma.card.update({
     where: { id: parsed.id },
-    data: { columnId: parsed.columnId, sortOrder: parsed.sortOrder },
+    data: {
+      columnId: parsed.columnId,
+      sortOrder: parsed.sortOrder,
+      // При смене колонки человеком сбрасываем владельца: агент стадии-получателя
+      // (architect для Incoming, coder для Development и т.д.) claim'ит карточки
+      // только с agentId IS NULL. Без сброса карточка, уже проходившая через
+      // агента, имеет проставленный agentId и больше НИКОГДА не подхватывается —
+      // работало лишь создание новой карточки в Draft (там agentId изначально null).
+      ...(statusChanged ? { agentId: null } : {}),
+    },
   });
   revalidatePath("/");
 
   // Событие для агентов: TL перетащил карточку. Если сменилась колонка (статус) —
   // это card.moved с prevStatus, иначе просто переупорядочивание внутри колонки.
-  const statusChanged = targetCol.name !== card.column.name;
   await publishEvent({
     type: statusChanged ? "card.moved" : "card.updated",
     boardId: targetCol.boardId,
