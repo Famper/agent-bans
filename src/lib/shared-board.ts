@@ -1,12 +1,22 @@
 import { prisma } from "@/lib/db";
-import { keysBetween } from "@/lib/ordering";
 
 // Колонки для холодного старта — только если в БД нет ни одной доски и общую
-// надо создать с нуля.
-const DEFAULT_COLUMNS: { name: string; color: string }[] = [
-  { name: "To Do", color: "#94a3b8" },
-  { name: "In Progress", color: "#3b82f6" },
-  { name: "Done", color: "#22c55e" },
+// надо создать с нуля. Набор синхронизирован с агентским пайплайном
+// ai-revolution (docker/scripts/multi-tenant-guardian.mjs / seed-agent-board.mjs):
+// Draft самый левый — sortOrder "Z0" сортируется до "a0" (Z < a), агенты его не
+// опрашивают; задачу готовят в Draft и тянут в Incoming.
+const DEFAULT_COLUMNS: { name: string; color: string; sortOrder: string }[] = [
+  { name: "Draft",              color: "#64748b", sortOrder: "Z0" },
+  { name: "Incoming",           color: "#94a3b8", sortOrder: "a0" },
+  { name: "Architect",          color: "#a855f7", sortOrder: "a1" },
+  { name: "AwaitingTLApproval", color: "#eab308", sortOrder: "a2" },
+  { name: "Development",        color: "#3b82f6", sortOrder: "a3" },
+  { name: "Testing",            color: "#06b6d4", sortOrder: "a4" },
+  { name: "Review",             color: "#a78bfa", sortOrder: "a45" },
+  { name: "TLDecision",         color: "#f97316", sortOrder: "a5" },
+  { name: "Done",               color: "#22c55e", sortOrder: "a6" },
+  { name: "Rejected",           color: "#ef4444", sortOrder: "a7" },
+  { name: "Blocked",            color: "#dc2626", sortOrder: "a8" },
 ];
 
 // Одна общая доска на весь инстанс. Раньше каждому юзеру при первом заходе на
@@ -43,13 +53,12 @@ export async function ensureSharedBoard(bootstrapOwnerId: string): Promise<strin
     data: { userId: bootstrapOwnerId, name: "My Board" },
   });
 
-  const orders = keysBetween(null, null, DEFAULT_COLUMNS.length);
   await prisma.column.createMany({
-    data: DEFAULT_COLUMNS.map((c, i) => ({
+    data: DEFAULT_COLUMNS.map((c) => ({
       boardId: created.id,
       name: c.name,
       color: c.color,
-      sortOrder: orders[i],
+      sortOrder: c.sortOrder,
     })),
   });
 
