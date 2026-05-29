@@ -11,25 +11,23 @@ import { randomBytes } from "node:crypto";
 
 const prisma = new PrismaClient();
 
+// sortOrder задан явно (не индексом): иначе при 11+ колонках "a10" лексикографически
+// уходит раньше "a2" и порядок ломается. Draft — "Z0" (Z < a) ставит его самым левым,
+// агенты его НЕ опрашивают: задачу сочиняют тут, в Incoming тянут готовой. Набор
+// синхронизирован с ai-revolution (docker/scripts/multi-tenant-guardian.mjs).
 const STATUSES = [
-  // Draft — черновик. Самая левая колонка, агенты её НЕ опрашивают: задачу
-  // сочиняют здесь, а в Incoming перетаскивают, когда она готова к исполнению.
-  { name: "Draft", color: "#64748b" },
-  { name: "Incoming", color: "#94a3b8" },
-  { name: "Architect", color: "#a855f7" },
-  { name: "AwaitingTLApproval", color: "#eab308" },
-  { name: "Development", color: "#3b82f6" },
-  { name: "Testing", color: "#06b6d4" },
-  { name: "TLDecision", color: "#f97316" },
-  { name: "Done", color: "#22c55e" },
-  { name: "Rejected", color: "#ef4444" },
-  { name: "Blocked", color: "#dc2626" },
+  { name: "Draft",              color: "#64748b", sortOrder: "Z0" },
+  { name: "Incoming",           color: "#94a3b8", sortOrder: "a0" },
+  { name: "Architect",          color: "#a855f7", sortOrder: "a1" },
+  { name: "AwaitingTLApproval", color: "#eab308", sortOrder: "a2" },
+  { name: "Development",        color: "#3b82f6", sortOrder: "a3" },
+  { name: "Testing",            color: "#06b6d4", sortOrder: "a4" },
+  { name: "Review",             color: "#a78bfa", sortOrder: "a45" },
+  { name: "TLDecision",         color: "#f97316", sortOrder: "a5" },
+  { name: "Done",               color: "#22c55e", sortOrder: "a6" },
+  { name: "Rejected",           color: "#ef4444", sortOrder: "a7" },
+  { name: "Blocked",            color: "#dc2626", sortOrder: "a8" },
 ];
-
-function fractionalKey(i) {
-  // Простая лексикографическая последовательность: a0, a1, ..., a8.
-  return `a${i}`;
-}
 
 async function main() {
   const email = process.env.AGENT_BOARD_OWNER_EMAIL ?? "agent-bot@local";
@@ -60,16 +58,15 @@ async function main() {
   }
 
   // 3. Колонки под Hermes-статусы.
-  for (let i = 0; i < STATUSES.length; i++) {
-    const s = STATUSES[i];
+  for (const s of STATUSES) {
     await prisma.column.upsert({
       where: { boardId_name: { boardId: board.id, name: s.name } },
-      update: { color: s.color, sortOrder: fractionalKey(i) },
+      update: { color: s.color, sortOrder: s.sortOrder },
       create: {
         boardId: board.id,
         name: s.name,
         color: s.color,
-        sortOrder: fractionalKey(i),
+        sortOrder: s.sortOrder,
       },
     });
   }

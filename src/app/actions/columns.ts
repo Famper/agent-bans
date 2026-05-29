@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { resolveSharedBoardId } from "@/lib/shared-board";
 import { keyBetween } from "@/lib/ordering";
 import type { ColumnDTO } from "@/types/board";
 
@@ -11,17 +12,18 @@ const hexColor = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, "Цвет должен быть в формате #RRGGBB");
 
-async function userOwnsBoard(boardId: string, userId: string) {
-  const board = await prisma.board.findFirst({
-    where: { id: boardId, userId },
-    select: { id: true },
-  });
-  if (!board) throw new Error("FORBIDDEN");
+// Доступ к доске общий для всех залогиненных, но операции должны бить ровно по
+// общей доске — orphan-доски (наследие per-user режима) трогать нельзя.
+async function assertSharedBoard(boardId: string) {
+  const sharedId = await resolveSharedBoardId();
+  if (!sharedId || boardId !== sharedId) throw new Error("FORBIDDEN");
 }
 
-async function userOwnsColumn(columnId: string, userId: string) {
+async function assertSharedColumn(columnId: string) {
+  const sharedId = await resolveSharedBoardId();
+  if (!sharedId) throw new Error("FORBIDDEN");
   const column = await prisma.column.findFirst({
-    where: { id: columnId, board: { userId } },
+    where: { id: columnId, boardId: sharedId },
     select: { id: true, boardId: true },
   });
   if (!column) throw new Error("FORBIDDEN");
@@ -35,9 +37,9 @@ const createSchema = z.object({
 });
 
 export async function createColumn(input: z.infer<typeof createSchema>): Promise<ColumnDTO> {
-  const user = await requireUser();
+  await requireUser();
   const parsed = createSchema.parse(input);
-  await userOwnsBoard(parsed.boardId, user.id);
+  await assertSharedBoard(parsed.boardId);
 
   const last = await prisma.column.findFirst({
     where: { boardId: parsed.boardId },
@@ -76,9 +78,9 @@ const updateSchema = z.object({
 });
 
 export async function updateColumn(input: z.infer<typeof updateSchema>) {
-  const user = await requireUser();
+  await requireUser();
   const parsed = updateSchema.parse(input);
-  await userOwnsColumn(parsed.id, user.id);
+  await assertSharedColumn(parsed.id);
 
   const updated = await prisma.column.update({
     where: { id: parsed.id },
@@ -98,9 +100,9 @@ const moveSchema = z.object({
 });
 
 export async function moveColumn(input: z.infer<typeof moveSchema>) {
-  const user = await requireUser();
+  await requireUser();
   const parsed = moveSchema.parse(input);
-  await userOwnsColumn(parsed.id, user.id);
+  await assertSharedColumn(parsed.id);
 
   await prisma.column.update({
     where: { id: parsed.id },
@@ -110,8 +112,8 @@ export async function moveColumn(input: z.infer<typeof moveSchema>) {
 }
 
 export async function deleteColumn(id: string) {
-  const user = await requireUser();
-  await userOwnsColumn(id, user.id);
+  await requireUser();
+  await assertSharedColumn(id);
   await prisma.column.delete({ where: { id } });
   revalidatePath("/");
 }

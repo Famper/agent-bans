@@ -11,7 +11,7 @@
 
 import Redis from "ioredis";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { resolveSharedBoardId } from "@/lib/shared-board";
 import { EVENTS_CHANNEL, type AgentEvent } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
@@ -26,12 +26,8 @@ export async function GET(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  // Доска юзера: события фильтруем по boardId, чтобы не текли чужие доски.
-  const board = await prisma.board.findFirst({
-    where: { userId: session.user.id },
-    select: { id: true },
-  });
-  const boardId = board?.id ?? null;
+  // Общая доска: события фильтруем по её boardId (на инстансе она одна).
+  const boardId = await resolveSharedBoardId();
 
   const redisUrl = process.env.REDIS_URL;
   const encoder = new TextEncoder();
