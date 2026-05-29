@@ -32,7 +32,9 @@ services:
       - ./next.config.ts:/app/next.config.ts
       - ./tsconfig.json:/app/tsconfig.json
       - ./postcss.config.mjs:/app/postcss.config.mjs
-      - ./next-env.d.ts:/app/next-env.d.ts
+      # next-env.d.ts НЕ монтируем: он автогенерируется Next внутри контейнера и
+      # лежит в .gitignore. Если bind-mount'ить отсутствующий на хосте файл, Docker
+      # создаёт на его месте директорию → Next падает с EISDIR на /app/next-env.d.ts.
       - app-node-modules:/app/node_modules
       - app-next-cache:/app/.next
       - kanban-db:/data/db
