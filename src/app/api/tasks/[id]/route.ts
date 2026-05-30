@@ -64,6 +64,12 @@ export async function PATCH(req: Request, ctx: RouteCtx) {
         });
         data.column = { connect: { id: column.id } };
         data.sortOrder = keyBetween(last?.sortOrder ?? null, null);
+        // Смена колонки = передача задачи дальше = освобождение лока. claim отдаёт
+        // только карточки с agentId IS NULL, поэтому при хэндоффе обнуляем владельца
+        // (перебивая agentId, который мог прийти в теле от updateStatus). Иначе
+        // карточка «застревает» во владении предыдущего агента и её никто не возьмёт.
+        // Лок во время работы держится через same-column updateStatus (targetStatus=null).
+        data.agentId = null;
       }
       return tx.card.update({
         where: { id },
