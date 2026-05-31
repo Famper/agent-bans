@@ -71,6 +71,12 @@ export async function publishEvent(
 ): Promise<void> {
   const client = getPublisher();
   if (!client) return;
+  // Соединение ещё не "ready" — типичное окно сразу после старта kanban-server
+  // (HTTP уже отвечает, TCP к Redis ещё устанавливается) либо при переподключении.
+  // Событие best-effort: тихо пропускаем (воркеры подхватят polling-fallback'ом).
+  // Без этого ioredis (enableOfflineQueue:false) кидает "Stream isn't writeable"
+  // в лог на каждый publish в этом окне.
+  if (client.status !== "ready") return;
   try {
     const payload: AgentEvent = {
       ...ev,
